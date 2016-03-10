@@ -1,7 +1,5 @@
 # Just for linux kernel learning.
 
 提取的目录：
-arch/
-  |--x86/
 init/
 
