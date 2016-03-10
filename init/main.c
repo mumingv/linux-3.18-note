@@ -400,6 +400,7 @@ static noinline void __init_refok rest_init(void)
 	 * the init task will end up wanting to create kthreads, which, if
 	 * we schedule it before we create kthreadd, will OOPS.
 	 */
+    // 为进程1创建内核线程
 	kernel_thread(kernel_init, NULL, CLONE_FS);
 	numa_default_policy();
 	pid = kernel_thread(kthreadd, NULL, CLONE_FS | CLONE_FILES);
@@ -491,6 +492,8 @@ static void __init mm_init(void)
 	 */
 	page_cgroup_init_flatmem();
 	mem_init();
+
+    // 初始化slab分配器
 	kmem_cache_init();
 	percpu_init_late();
 	pgtable_init();
@@ -535,7 +538,9 @@ asmlinkage __visible void __init start_kernel(void)
 	setup_per_cpu_areas();
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
 
+    // 初始化内存管理区
 	build_all_zonelists(NULL, NULL);
+    // 初始化伙伴系统分配程序
 	page_alloc_init();
 
 	pr_notice("Kernel command line: %s\n", boot_command_line);
@@ -558,6 +563,7 @@ asmlinkage __visible void __init start_kernel(void)
 	pidhash_init();
 	vfs_caches_init_early();
 	sort_main_extable();
+    // 与init_IRQ函数一起完成IDT初始化
 	trap_init();
 	mm_init();
 
@@ -566,7 +572,9 @@ asmlinkage __visible void __init start_kernel(void)
 	 * timer interrupt). Full topology setup happens at smp_init()
 	 * time - but meanwhile we still have a functioning scheduler.
 	 */
+    // 初始化调度程序
 	sched_init();
+
 	/*
 	 * Disable preemption - early bootup scheduling is extremely
 	 * fragile until we cpu_idle() for the first time.
@@ -581,6 +589,7 @@ asmlinkage __visible void __init start_kernel(void)
 	radix_tree_init();
 	/* init some links before init_ISA_irqs() */
 	early_irq_init();
+    // 与trap_init函数一起完成IDT初始化
 	init_IRQ();
 	tick_init();
 	rcu_init_nohz();
@@ -588,6 +597,7 @@ asmlinkage __visible void __init start_kernel(void)
 	hrtimers_init();
 	softirq_init();
 	timekeeping_init();
+    // 初始化系统日期和时间
 	time_init();
 	sched_clock_postinit();
 	perf_event_init();
@@ -635,6 +645,7 @@ asmlinkage __visible void __init start_kernel(void)
 	if (late_time_init)
 		late_time_init();
 	sched_clock_init();
+    // 确定CPU时钟的速度
 	calibrate_delay();
 	pidmap_init();
 	anon_vma_init();
