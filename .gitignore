@@ -69,6 +69,7 @@ Module.symvers
 # Added by mumingv
 #
 # 
+/arch/
 /Documentation/
 /drivers/
 /block/
