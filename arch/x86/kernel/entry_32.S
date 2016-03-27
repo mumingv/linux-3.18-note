@@ -487,10 +487,13 @@ sysexit_audit:
 ENDPROC(ia32_sysenter_target)
 
 	# system call handler stub
+	# 系统执行"int 0x80"指令时，会跳转到该处执行系统调用的代码
+	# 系统调用就是一个特殊的中断，所以有和中断类似的保存现场和恢复现场的操作
 ENTRY(system_call)
 	RING0_INT_FRAME			# can't unwind into user space anyway
 	ASM_CLAC
 	pushl_cfi %eax			# save orig_eax
+	# 保存现场
 	SAVE_ALL
 	GET_THREAD_INFO(%ebp)
 					# system call tracing in operation / emulation
@@ -499,6 +502,7 @@ ENTRY(system_call)
 	cmpl $(NR_syscalls), %eax
 	jae syscall_badsys
 syscall_call:
+	# 调用系统调用，%eax中存放的就是系统调用号，如：13号系统调用sys_time
 	call *sys_call_table(,%eax,4)
 syscall_after_call:
 	movl %eax,PT_EAX(%esp)		# store the return value
@@ -509,9 +513,13 @@ syscall_exit:
 					# between sampling and the iret
 	TRACE_IRQS_OFF
 	movl TI_flags(%ebp), %ecx
+	# 检测当前任务是否需要调用syscall_exit_work
 	testl $_TIF_ALLWORK_MASK, %ecx	# current->work
+	# 系统调用结束前可能需要的一些处理放在这里
+	# 如：当前进程接收到的一些信号需要处理；当前系统进程需要发生调度；等等...
 	jne syscall_exit_work
 
+# 返回到用户态
 restore_all:
 	TRACE_IRQS_IRET
 restore_all_notrace:
@@ -529,7 +537,9 @@ restore_all_notrace:
 #endif
 restore_nocheck:
 	RESTORE_REGS 4			# skip orig_eax/error_code
+# 系统调用(中断)结束返回
 irq_return:
+	# 该宏定义其实就是iret
 	INTERRUPT_RETURN
 .section .fixup,"ax"
 ENTRY(iret_exc)
@@ -592,8 +602,10 @@ ENDPROC(system_call)
 	RING0_PTREGS_FRAME		# can't unwind into user space anyway
 work_pending:
 	testb $_TIF_NEED_RESCHED, %cl
+	# 处理信号, 如：进程间通讯的信号
 	jz work_notifysig
 work_resched:
+	# 重新进程调度，进程调度里面会发生进程上下文的切换
 	call schedule
 	LOCKDEP_SYS_EXIT
 	DISABLE_INTERRUPTS(CLBR_ANY)	# make sure we don't miss an interrupt
@@ -603,6 +615,7 @@ work_resched:
 	movl TI_flags(%ebp), %ecx
 	andl $_TIF_WORK_MASK, %ecx	# is there any work to be done other
 					# than syscall tracing?
+	# 调度完成之后再跳转到系统调用(中断)的恢复现场部分
 	jz restore_all
 	testb $_TIF_NEED_RESCHED, %cl
 	jnz work_resched
@@ -655,6 +668,7 @@ END(syscall_trace_entry)
 	ALIGN
 syscall_exit_work:
 	testl $_TIF_WORK_SYSCALL_EXIT, %ecx
+	# 进行信号处理，以及进程调度
 	jz work_pending
 	TRACE_IRQS_ON
 	ENABLE_INTERRUPTS(CLBR_ANY)	# could let syscall_trace_leave() call
